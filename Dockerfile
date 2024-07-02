@@ -13,6 +13,7 @@ ARG vnc_password=""
 EXPOSE 5901 6080
 
 ADD xstartup ${HOME}/.vnc/
+ADD entrypoint.sh /entrypoint.sh
 
 RUN /bin/dbus-uuidgen --ensure
 RUN groupadd -g ${GID} ${USER}
@@ -57,7 +58,6 @@ RUN chown -R ${UID}:${GID} ${HOME} && \
 
 WORKDIR ${HOME}
 
-ADD entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
