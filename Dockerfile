@@ -1,15 +1,12 @@
-# Using CentOS 7 base image and VNC
-
-FROM centos:7
-MAINTAINER john.shine <mr.john.shine@gmail.com>
-LABEL io.openshift.expose-services="5901:tcp"
+# Using phusion/baseimage as base image and VNC
+FROM phusion/baseimage:noble-1.0.0
 
 USER root
 
 ENV DISPLAY=":1"
 ENV USER="crossover"
-ENV UID=100
-ENV GID=0
+ENV UID=1001
+ENV GID=1001
 ENV HOME=/home/${USER}
 ENV INSTALLDIR=/opt/cxoffice
 ARG vnc_password=""
@@ -18,32 +15,35 @@ EXPOSE 5901 6080
 ADD xstartup ${HOME}/.vnc/
 
 RUN /bin/dbus-uuidgen --ensure
+RUN groupadd -g ${GID} ${USER}
 RUN useradd -g ${GID} -u ${UID} -r -d ${HOME} -s /bin/bash ${USER}
 RUN echo "root:root" | chpasswd
 # set password of ${USER} to ${USER}
 RUN echo "${USER}:${USER}" | chpasswd
 
-RUN yum check-update -y ; \
-    yum install -y --setopt=tsflags=nodocs tigervnc-server xorg-x11-server-utils xorg-x11-server-Xvfb xorg-x11-fonts-* motif xterm && \
-    yum install -y --setopt=tsflags=nodocs sudo which wget file zenity python3&& \
-    yum install -y --setopt=tsflags=nodocs freetype.i686 freetype.x86_64 glibc.i686 glibc.x86_64 libICE.i686 libICE.x86_64 libSM.i686 libSM.x86_64 libX11.i686 libX11.x86_64 libXext.i686 libXext.x86_64 libgcc.i686 libgcc.x86_64 libpng.i686 libpng.x86_64 nss-mdns.i686 nss-mdns.x86_64 pygtk2 zlib.i686 zlib.x86_64 && \
-    /bin/echo -e "\n${USER}        ALL=(ALL)       NOPASSWD: ALL" >> /etc/sudoers && \
-    yum install -y git && \
-    git clone -b v0.9.6 https://github.com/wolfcw/libfaketime.git /tmp/libfaketime && \
-    yum groupinstall -y "Development Tools" && \
-    yum install -y glibc-devel.i686 && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends tigervnc-standalone-server x11-xserver-utils xvfb x11-apps xterm sudo wget file zenity python3 && \
+    apt-get install -y --no-install-recommends libfreetype6 libglib2.0-0 libice6 libsm6 libx11-6 libxext6 libgcc1 libpng16-16 libnss-mdns && \
+    echo "${USER} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    apt-get install -y git build-essential gcc-multilib
+
+# 克隆libfaketime代码库并安装
+RUN git clone -b v0.9.6 https://github.com/wolfcw/libfaketime.git /tmp/libfaketime && \
     cd /tmp/libfaketime && \
-    export CFLAGS="-m32" && \
+    export CFLAGS="-m32 -Wno-error=misleading-indentation -Wno-error=nonnull-compare -Wno-error=format-truncation" && \
     export LDFLAGS="-m32" && \
-    make && make install && \
-    wget https://github.com/novnc/noVNC/archive/v1.3.0.tar.gz -O /tmp/noVNC.tar.gz && \
+    make && make install
+
+# 下载和设置noVNC
+RUN wget https://github.com/novnc/noVNC/archive/v1.3.0.tar.gz -O /tmp/noVNC.tar.gz && \
     tar -zxvf /tmp/noVNC.tar.gz -C /opt && \
     git clone https://github.com/novnc/websockify /opt/noVNC-1.3.0/utils/websockify && \
-    mv /opt/noVNC-1.3.0/vnc_lite.html /opt/noVNC-1.3.0/index.html && \
-    yum remove -y git glibc-devel.i686 && \
-    yum groupremove -y "Development Tools" && \
+    mv /opt/noVNC-1.3.0/vnc_lite.html /opt/noVNC-1.3.0/index.html
+
+# 清理和删除不需要的软件包
+RUN apt-get remove -y git build-essential gcc-multilib && \
     rm -rf /tmp/libfaketime && rm -f /tmp/noVNC.tar.gz && \
-    yum clean all && rm -rf /var/cache/yum/*
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN /bin/echo "@`date \"+%F %T\"`" > /etc/faketimerc
 
@@ -78,4 +78,3 @@ RUN /bin/echo -e "zenity --info --text=\"Crossover Software install complete.\""
 RUN /bin/echo -e "rm -f /tmp/install-crossover.bin" >> ${HOME}/.vnc/xstartup
 RUN /bin/echo -e "mv ${HOME}/.vnc/xstartup_after ${HOME}/.vnc/xstartup" >> ${HOME}/.vnc/xstartup
 RUN /bin/echo -e "rm -f ${HOME}/.vnc/*.log ${HOME}/.vnc/*.pid" >> ${HOME}/.vnc/xstartup
-
