@@ -13,7 +13,6 @@ ARG vnc_password=""
 EXPOSE 5901 6080
 
 ADD xstartup ${HOME}/.vnc/
-ADD entrypoint.sh /entrypoint.sh
 
 RUN /bin/dbus-uuidgen --ensure
 RUN groupadd -g ${GID} ${USER}
@@ -26,7 +25,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends tigervnc-standalone-server x11-xserver-utils xvfb x11-apps xterm sudo wget file zenity python3 && \
     apt-get install -y --no-install-recommends libfreetype6 libglib2.0-0 libice6 libsm6 libx11-6 libxext6 libgcc1 libpng16-16 libnss-mdns && \
     echo "${USER} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
-    apt-get install -y git build-essential gcc-multilib
+    apt-get install -y git build-essential gcc-multilib && \
+    apt-get install -y xvfb
 
 # 克隆libfaketime代码库并安装
 RUN git clone -b v0.9.6 https://github.com/wolfcw/libfaketime.git /tmp/libfaketime && \
@@ -50,6 +50,8 @@ RUN /bin/echo "@`date \"+%F %T\"`" > /etc/faketimerc
 
 RUN touch ${HOME}/.vnc/passwd ${HOME}/.Xauthority
 
+ADD wechat ${HOME}
+
 RUN chown -R ${UID}:${GID} ${HOME} && \
     chmod 775 ${HOME}/.vnc/xstartup && \
     chmod 600 ${HOME}/.vnc/passwd && \
@@ -57,6 +59,16 @@ RUN chown -R ${UID}:${GID} ${HOME} && \
     chown -R ${UID}:${GID} ${INSTALLDIR}
 
 WORKDIR ${HOME}
+
+# 添加 CrossOver 安装包
+ADD installer/cross-over-24.0.2.bin /tmp/install-crossover.bin
+
+# 使用 xvfb-run 来运行 CrossOver 安装程序
+RUN chmod +x /tmp/install-crossover.bin && \
+    xvfb-run /tmp/install-crossover.bin --i-agree-to-all-licenses --destination ${INSTALLDIR} --noreadme --noprompt --nooptions && \
+    rm -f /tmp/install-crossover.bin
+
+ADD entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
 
@@ -69,12 +81,7 @@ RUN /bin/echo -e 'alias ll="ls -last"' >> ${HOME}/.bashrc
 RUN /bin/echo -e "export DISPLAY=${DISPLAY}"  >> ${HOME}/.vnc/xstartup
 RUN /bin/echo -e "[ -r ${HOME}/.Xresources ] && xrdb ${HOME}/.Xresources\nxsetroot -solid grey"  >> ${HOME}/.vnc/xstartup
 RUN /bin/echo -e "/opt/noVNC-1.3.0/utils/novnc_proxy --listen 6080 --vnc 127.0.0.1:5901 &"  >> ${HOME}/.vnc/xstartup
-RUN cp ${HOME}/.vnc/xstartup ${HOME}/.vnc/xstartup_after
-RUN /bin/echo -e "${INSTALLDIR}/bin/crossover" >> ${HOME}/.vnc/xstartup_after
+RUN /bin/echo -e "${INSTALLDIR}/bin/crossover" >> ${HOME}/.vnc/xstartup
 
-# install crossover
-RUN /bin/echo -e "wget --no-check-certificate http://crossover.codeweavers.com/redirect/crossover.bin -O /tmp/install-crossover.bin && chmod +x /tmp/install-crossover.bin && /tmp/install-crossover.bin --i-agree-to-all-licenses --destination ${INSTALLDIR} --noreadme --noprompt --nooptions" >> ${HOME}/.vnc/xstartup
-RUN /bin/echo -e "zenity --info --text=\"Crossover Software install complete.\"" >> ${HOME}/.vnc/xstartup
-RUN /bin/echo -e "rm -f /tmp/install-crossover.bin" >> ${HOME}/.vnc/xstartup
-RUN /bin/echo -e "mv ${HOME}/.vnc/xstartup_after ${HOME}/.vnc/xstartup" >> ${HOME}/.vnc/xstartup
-RUN /bin/echo -e "rm -f ${HOME}/.vnc/*.log ${HOME}/.vnc/*.pid" >> ${HOME}/.vnc/xstartup
+# 保持容器运行
+RUN /bin/echo -e "tail -f /dev/null" >> ${HOME}/.vnc/xstartup

@@ -10,12 +10,3 @@ if [ -z "$vnc_password" ]; then
 else
     /usr/bin/vncserver -geometry 1920x1080 -fg
 fi
-
-# 启动 CrossOver
-${INSTALLDIR}/bin/crossover &
-
-# 启动 noVNC 服务器
-/opt/noVNC-1.3.0/utils/novnc_proxy --listen 6080 --vnc 127.0.0.1:5901 &
-
-# 保持容器运行
-tail -f /dev/null
